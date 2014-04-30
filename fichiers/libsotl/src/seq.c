@@ -20,11 +20,13 @@ static int *atom_state = NULL;
 
 typedef struct box {
 	unsigned nbBox; //nombre de box
+	unsigned nbBoxLigne; //nombre de box sur un axe
 	int * nbAtomToBox; // nombre d'atome par box
 	int * preNbAtomToBox; // nombre prefix d'atome par box
 	calc_t * swapPosx;
 	calc_t * swapSpeedx;
 	int * swapState;
+	unsigned * numboxAtom; //numero de la box pour un atom.
 } box_t;
 
 static box_t * boxSort = NULL;
@@ -89,16 +91,24 @@ static void seq_bounce (sotl_device_t *dev)
   //TODO
   for (unsigned n = 0; n < set->natoms; n++) {
   
+  
   	for(int i = 0; i <3 ; i++)
   	{
-  		if(set->pos.x[n+set->offset*i]< domain->min_ext[i])
+  		if(set->pos.x[n+set->offset*i]<= domain->min_ext[i])
   		{
+  		
+  			//TODO pour éviter d'avoir des atome qui ne sont pas dans des boite on force les cordonné au plus/moins = max_ext/min_ext
+  			set->pos.x[n+set->offset*i] = domain->min_ext[i];
+  			
   			if(set->speed.dx[n+set->offset*i] < 0)
   			{set->speed.dx[n+set->offset*i]*= -1;
   			atom_state[n] = SHOCK_PERIOD;}
   		}
-  		if(set->pos.x[n+set->offset*i] > domain->max_ext[i])
+  		if(set->pos.x[n+set->offset*i] >= domain->max_ext[i])
   		{
+  		
+  			set->pos.x[n+set->offset*i] = domain->max_ext[i];
+  		
   			if(set->speed.dx[n+set->offset*i] > 0){
   			set->speed.dx[n+set->offset*i]*= -1;
   			atom_state[n] = SHOCK_PERIOD;}
@@ -179,9 +189,11 @@ static void sortBubble(sotl_atom_set_t *set)
 	}
 }
 
-static int xyzToNumBox(int x, int y, int z)
+static unsigned xyzToNumBox(unsigned x, unsigned y, unsigned z)
 {
-	return x + (LENNARD_SQUARED_CUTOFF * y) + (2 * LENNARD_SQUARED_CUTOFF * z) ;
+	//return x + (LENNARD_SQUARED_CUTOFF * y) + (2 * LENNARD_SQUARED_CUTOFF * z) ;
+	//return x + (LENNARD_SQUARED_CUTOFF * y) + LENNARD_SQUARED_CUTOFF * z ;
+	return x + y * boxSort->nbBoxLigne + z * ( boxSort->nbBoxLigne * boxSort->nbBoxLigne);
 }
 
 static void resTab(int * tab , unsigned sizeofTab)
@@ -193,26 +205,46 @@ static void resTab(int * tab , unsigned sizeofTab)
 }
 static void prefixTab(int * source , int * dest, unsigned size)
 {
-	dest[0] = source[0]; 
-	for(unsigned i =1 ; i < size; i++)
+	dest[0] = 0;
+	for(unsigned i =0 ; i < size; i++)
 	{
-		dest[i] = dest[i-1] + source[i]; 
+		dest[i+1] = dest[i] + source[i]; 
 	}
 }
 
-static void moveAtomBox(int nbAtom, int numbox, sotl_atom_set_t *set)
+static void moveAtomBox(int nAtom, int numbox, sotl_atom_set_t *set)
 {
 	
 	int newPos = boxSort->preNbAtomToBox[numbox] + boxSort->nbAtomToBox[numbox];
+	
 	for(unsigned j = 0 ; j < 3 ; j++)
 	{
 		int offset = set->offset * j;
-		boxSort->swapPosx[newPos + offset] = set->pos.x[nbAtom + offset];
-		boxSort->swapSpeedx[newPos + offset] = set->speed.dx[nbAtom +offset];
+		boxSort->swapPosx[newPos + offset] = set->pos.x[nAtom + offset];
+		boxSort->swapSpeedx[newPos + offset] = set->speed.dx[nAtom +offset];
 	}
-	boxSort->swapState[newPos] = atom_state[nbAtom];
+	boxSort->swapState[newPos] = atom_state[nAtom];
 	boxSort->nbAtomToBox[numbox]++;
 }
+
+
+//TODO fonction de dev inutile remplacer par switchPtr
+static void copiePtr( sotl_atom_set_t *set)
+{
+
+	for (unsigned n = 0; n < set->natoms; n++ )
+	{
+		atom_state[n] = boxSort->swapState[n];
+		for(int j = 0 ; j < 3 ; j++)
+		{
+			set->pos.x[n + j * set->offset] = boxSort->swapPosx[n + j * set->offset];
+			set->speed.dx[n + j * set->offset] = boxSort->swapSpeedx[n + j * set->offset];
+		}
+	}
+	
+
+}
+
 static void switchPtr ( sotl_atom_set_t *set)
 {
 	int * spState =  atom_state;
@@ -220,6 +252,7 @@ static void switchPtr ( sotl_atom_set_t *set)
 	calc_t * spSpeedx = set->speed.dx;
 	
 	atom_state = boxSort->swapState;
+	
 	set->pos.x = boxSort->swapPosx;
 	set->pos.y = set->pos.x + set->offset;
 	set->pos.z = set->pos.y + set->offset;
@@ -242,19 +275,21 @@ static void sortAtomBox(sotl_atom_set_t *set){
 	resTab(boxSort->nbAtomToBox, boxSort->nbBox);
 	resTab(boxSort->preNbAtomToBox, boxSort->nbBox+1);
 	
+	unsigned * numbox = boxSort->numboxAtom;
+	unsigned posTmp[3];
 	
 	for(int i = 0 ; i < n; i++)
 	{
-		int numbox;
-		int posTmp[3];
+	
 		for(int j=0;j<3;j++)
 		{
-			posTmp[j] = (int)(set->pos.x[set->offset * j + i] / LENNARD_SQUARED_CUTOFF); //position in box axis X or Y or Z
+			posTmp[j] = (unsigned)(set->pos.x[set->offset * j + i] / LENNARD_SQUARED_CUTOFF); //position in box axis X or Y or Z
 		
 		}
-		numbox = xyzToNumBox(posTmp[0],posTmp[1],posTmp[2]);
+		numbox[i] = xyzToNumBox(posTmp[0],posTmp[1],posTmp[2]);
+		if(numbox[i] < boxSort-> nbBox)
 		
-		boxSort->nbAtomToBox[numbox]++;
+		boxSort->nbAtomToBox[numbox[i]]++;
 		
 	}
 	
@@ -263,21 +298,14 @@ static void sortAtomBox(sotl_atom_set_t *set){
 	
 	for(int i = 0 ; i < n; i++)
 	{
-		int numbox;
-		int posTmp[3];
-		for(int j=0;j<3;j++)
-		{
-			posTmp[j] = (int)(set->pos.x[set->offset * j + i] / LENNARD_SQUARED_CUTOFF); //position in box axis X or Y or Z
 		
-		}
-		numbox = xyzToNumBox(posTmp[0],posTmp[1],posTmp[2]);
-		
-		moveAtomBox(i,numbox,set);
+		//TODO si l'atome sort du cub mon ne peut plus le calculer
+		if(numbox[i] < boxSort-> nbBox)
+			moveAtomBox(i,numbox[i],set);
 		
 	}
 	
 	switchPtr(set);
-	
 
 }
 
@@ -291,7 +319,6 @@ static void boxForce(sotl_device_t *dev)
 	/*for(int i = 0 ; i < nb_box+1; i++){ // init size to 0 for each box
 			atom_box_size[i] = 0;
 	}*/
-	
 	sortAtomBox(set);
 	
 	
@@ -341,7 +368,7 @@ static void boxForce(sotl_device_t *dev)
 
 static void seq_force (sotl_device_t *dev)
 {
-	sotl_atom_set_t *set = &dev->atom_set;
+/*	sotl_atom_set_t *set = &dev->atom_set;*/
 	boxForce(dev);
 
 	//sortBubble(set);
@@ -433,6 +460,7 @@ void seq_alloc_buffers (sotl_device_t *dev)
 	unsigned nbBoxLigne = (domain->max_ext[0]/LENNARD_SQUARED_CUTOFF) +1; // work only on cube !!!
 	
 	boxSort = malloc (sizeof (box_t));
+	boxSort->nbBoxLigne = nbBoxLigne;
 	boxSort->nbBox = nbBoxLigne *nbBoxLigne * nbBoxLigne ;
 	
 	
@@ -442,6 +470,7 @@ void seq_alloc_buffers (sotl_device_t *dev)
 	boxSort->swapPosx = malloc(sizeof(calc_t) * set->offset * 3);
 	boxSort->swapSpeedx = malloc(sizeof(calc_t) * set->offset * 3);
 	boxSort->swapState = malloc(set->natoms * sizeof(int));
+	boxSort->numboxAtom = malloc(set->natoms * sizeof(unsigned));
 	
   atom_state = calloc(set->natoms, sizeof(int));
   printf("natoms: %d\n", set->natoms);
@@ -456,6 +485,7 @@ void seq_finalize (sotl_device_t *dev)
   free(boxSort->swapSpeedx);
   free(boxSort->swapState);
   free(boxSort);
+  free(boxSort->numboxAtom);
 
   dev->compute = SOTL_COMPUTE_SEQ; // dummy op to avoid warning
 }
