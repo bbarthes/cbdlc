@@ -47,10 +47,11 @@ static void seq_update_vbo (sotl_device_t *dev)
     if(atom_state[n]  > 0)
     {
       float ratio =  (float)atom_state[n]/ SHOCK_PERIOD; //(set->pos.z[n] - domain->min_ext[2]) / (domain->max_ext[2] - domain->min_ext[2]);
+//	float ratior = (float)atom_state[n]/boxSort->nbBox;
 	
       vbo_color[n*3 + 0] = (1.0 - ratio) * atom_color[0].R + ratio * 1.0;
       vbo_color[n*3 + 1] = (1.0 - ratio) * atom_color[0].G + ratio * 0.0;
-      vbo_color[n*3 + 2] = (1.0 - ratio) * atom_color[0].B + ratio * 0.0;
+      vbo_color[n*3 + 2] = (1.0 - ratio) * atom_color[0].B + ratio * 0.5;
       atom_state[n]--;
     }
   }
@@ -102,7 +103,8 @@ static void seq_bounce (sotl_device_t *dev)
   			
   			if(set->speed.dx[n+set->offset*i] < 0)
   			{set->speed.dx[n+set->offset*i]*= -1;
-  			atom_state[n] = SHOCK_PERIOD;}
+  			atom_state[n] = SHOCK_PERIOD;
+  			}
   		}
   		if(set->pos.x[n+set->offset*i] >= domain->max_ext[i])
   		{
@@ -111,7 +113,8 @@ static void seq_bounce (sotl_device_t *dev)
   		
   			if(set->speed.dx[n+set->offset*i] > 0){
   			set->speed.dx[n+set->offset*i]*= -1;
-  			atom_state[n] = SHOCK_PERIOD;}
+  			atom_state[n] = SHOCK_PERIOD;
+  			}
 		}
   	
   	}
@@ -309,25 +312,132 @@ static void sortAtomBox(sotl_atom_set_t *set){
 
 }
 
-static void boxForce(sotl_device_t *dev)
+static void boxForceTest(sotl_device_t *dev)
 {
+
 	sotl_atom_set_t *set = &dev->atom_set;
-/*	sotl_domain_t *domain = &dev->domain;*/
+	sotl_domain_t *domain = &dev->domain;
 
-	
+	sortAtomBox(set);
+	int cubeSize = 3;
+	unsigned numBox,numBoxAdj;
+	//float maxSize = LENNARD_SQUARED_CUTOFF * boxSort->nbBoxLigne;
+	printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+	int patacoin = 0;
+	for(int x = 0; x < cubeSize; x++)
+		for(int y = 0; y < cubeSize; y++)
+			for(int z = 0; z < cubeSize; z++)
+			{
+				//numBox = xyzToNumBox(x,y,z);
+				for(int xadj = -1; xadj < 2; xadj++)
+					for(int yadj = -1; yadj < 2; yadj++)
+						for(int zadj = -1; zadj < 2; zadj++)
+						{
+							int xboxadj = x +xadj;
+							int yboxadj = y +yadj;
+							int zboxadj = z +zadj;
+							if(xboxadj > -1 && xboxadj < cubeSize  && yboxadj > -1 && yboxadj < cubeSize  && zboxadj > -1 && zboxadj < cubeSize)
+							{
+								patacoin++;
+								printf("main : x %d, y %d, z %d\n", x, y , z);
+								printf("other : x %d, y %d, z %d\n", xboxadj, yboxadj , zboxadj);
+								//numBoxAdj = xyzToNumBox(xboxadj,yboxadj,zboxadj);
+								/*
+								for (unsigned current = boxSort->preNbAtomToBox[numBox]; current < boxSort->preNbAtomToBox[numBox+1]; current++) 
+								{
+									calc_t force[3] = { 0.0, 0.0, 0.0 };
 
-	/*for(int i = 0 ; i < nb_box+1; i++){ // init size to 0 for each box
-			atom_box_size[i] = 0;
-	}*/
+									for (unsigned other = boxSort->preNbAtomToBox[numBoxAdj]; other < boxSort->preNbAtomToBox[numBoxAdj+1]; other++)
+									{
+										if (current != other) 
+										{
+											calc_t sq_dist = squared_distance (set, current, other);
+
+											if (sq_dist < LENNARD_SQUARED_CUTOFF) 
+											{
+											  calc_t intensity = lennard_jones (sq_dist);
+
+											  force[0] += intensity * (set->pos.x[current] - set->pos.x[other]);
+											  force[1] += intensity * (set->pos.x[set->offset + current] -
+														   set->pos.x[set->offset + other]);
+											  force[2] += intensity * (set->pos.x[set->offset * 2 + current] -
+														   set->pos.x[set->offset * 2 + other]);
+											}
+
+										}
+									}
+									set->speed.dx[current] += force[0];
+									set->speed.dx[set->offset + current] += force[1];
+									set->speed.dx[set->offset * 2 + current] += force[2];
+								}*/
+							}
+						}
+			}
+			printf("pa %d \n", patacoin); 
+			exit(0);
+}
+
+static void boxForce(sotl_device_t *dev)
+{boxForceTest(dev);
+/*
+	sotl_atom_set_t *set = &dev->atom_set;
+	sotl_domain_t *domain = &dev->domain;
+
 	sortAtomBox(set);
 	
-	
-	
-	
-	/*/ 
-	for(unsigned boxNb = 0; boxNb < nb_box; boxNb++) {
+	unsigned numBox,numBoxAdj;
+	//float maxSize = LENNARD_SQUARED_CUTOFF * boxSort->nbBoxLigne;
+	for(int x = 0; x < boxSort->nbBoxLigne; x++)
+		for(int y = 0; y < boxSort->nbBoxLigne; y++)
+			for(int z = 0; z < boxSort->nbBoxLigne; z++)
+			{
+				numBox = xyzToNumBox(x,y,z);
+				for(int xadj = -1; xadj < 2; xadj++)
+					for(int yadj = -1; yadj < 2; yadj++)
+						for(int zadj = -1; zadj < 2; zadj++)
+						{
+							int xboxadj = x +xadj;
+							int yboxadj = y +yadj;
+							int zboxadj = z +zadj;
+							if(xboxadj > -1 && xboxadj < boxSort->nbBoxLigne  && yboxadj > -1 && yboxadj < boxSort->nbBoxLigne  && zboxadj > -1 && zboxadj < boxSort->nbBoxLigne)
+							{
+								numBoxAdj = xyzToNumBox(xboxadj,yboxadj,zboxadj);
+								
+								for (unsigned current = boxSort->preNbAtomToBox[numBox]; current < boxSort->preNbAtomToBox[numBox+1]; current++) 
+								{
+									calc_t force[3] = { 0.0, 0.0, 0.0 };
+
+									for (unsigned other = boxSort->preNbAtomToBox[numBoxAdj]; other < boxSort->preNbAtomToBox[numBoxAdj+1]; other++)
+									{
+										if (current != other) 
+										{
+											calc_t sq_dist = squared_distance (set, current, other);
+
+											if (sq_dist < LENNARD_SQUARED_CUTOFF) 
+											{
+											  calc_t intensity = lennard_jones (sq_dist);
+
+											  force[0] += intensity * (set->pos.x[current] - set->pos.x[other]);
+											  force[1] += intensity * (set->pos.x[set->offset + current] -
+														   set->pos.x[set->offset + other]);
+											  force[2] += intensity * (set->pos.x[set->offset * 2 + current] -
+														   set->pos.x[set->offset * 2 + other]);
+											}
+
+										}
+									}
+									set->speed.dx[current] += force[0];
+									set->speed.dx[set->offset + current] += force[1];
+									set->speed.dx[set->offset * 2 + current] += force[2];
+								}
+							}
+						}
+			}
+	*/
+	/*
+	for(unsigned boxNb = 0; boxNb < boxSort->nbBox; boxNb++) {
 		//int *box_pos = atom_box_pos[boxNb];
-		unsigned box_size = atom_box_size[boxNb];
+		unsigned box_size = boxSort->nbAtomToBox[boxNb];
 		
 		for (unsigned current = 0; current < box_size; current++) {
 			calc_t force[3] = { 0.0, 0.0, 0.0 };
