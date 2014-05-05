@@ -121,10 +121,10 @@ static calc_t squared_distance (sotl_atom_set_t *set, unsigned p1, unsigned p2)
   calc_t *pos1 = set->pos.x + p1,
     *pos2 = set->pos.x + p2;
     
-    if(p1 == NULL) printf("kaka\n");
-    if(p1 == -1) printf("lala\n");
-    if(p2 == NULL) printf("koko\n");
-    if(p2 == -1) printf("lolo\n");
+    //if(p1 == NULL) printf("kaka\n");
+    //if(p1 == -1) printf("lala\n");//c'est un non signed
+    //if(p2 == NULL) printf("koko\n");
+    //if(p2 == -1) printf("lolo\n");
 
   calc_t dx = pos2[0] - pos1[0],
          dy = pos2[set->offset] - pos1[set->offset],
@@ -173,7 +173,21 @@ static void seq_force_old (sotl_device_t *dev)
   }
 }
 
+static void copiePtr( sotl_atom_set_t *set)
+{
 
+	for (unsigned n = 0; n < set->natoms; n++ )
+	{
+		atom_state[n] = boxSort->swapState[n];
+		for(int j = 0 ; j < 3 ; j++)
+		{
+			set->pos.x[n + j * set->offset] = boxSort->swapPosx[n + j * set->offset];
+			set->speed.dx[n + j * set->offset] = boxSort->swapSpeedx[n + j * set->offset];
+		}
+	}
+	
+
+}
 static void switchPtr ( sotl_atom_set_t *set)
 {
 	int * spState =  atom_state;
@@ -250,6 +264,7 @@ static void sortAtomBox( sotl_domain_t *dom , sotl_atom_set_t *set)
 	}
 
 	switchPtr(set);
+	//copiePtr(set);
 
 }
 
@@ -268,8 +283,10 @@ int get_num_box(const sotl_domain_t *dom, const int x, const int y,
               box_y * dom->boxes[0] +
               box_x;
 
-    if(box_id < 0 && (unsigned)box_id < dom->total_boxes)
+    if(box_id < 0)
         return -1;
+    if((unsigned) box_id >= dom->total_boxes)
+		return -1;
 		
     return box_id;
 }
@@ -297,9 +314,9 @@ static void seq_force_cube (sotl_device_t *dev)
 		}
 	}*/
 			
-	for(int x = 0; x < dom->boxes[0]; x++)
-        for(int y = 0; y < dom->boxes[1]; y++)
-			for(int z = 0; z < dom->boxes[2]; z++)
+	for(unsigned x = 0; x < dom->boxes[0]; x++)
+        for(unsigned y = 0; y < dom->boxes[1]; y++)
+			for(unsigned z = 0; z < dom->boxes[2]; z++)
 			{
                 currentBox = get_num_box(dom,x,y,z);
 				if(boxSort->nbAtomToBox[currentBox] >0)
@@ -318,15 +335,19 @@ static void seq_force_cube (sotl_device_t *dev)
 
 								  //  printf("current %d , other %d  \n", currentBox,otherBox);
 
-									for (unsigned current = boxSort->preNbAtomToBox[currentBox]; current < boxSort->preNbAtomToBox[currentBox+1]; current++) 
+									for (unsigned current = boxSort->preNbAtomToBox[currentBox]; 
+									current < boxSort->preNbAtomToBox[currentBox+1]; 
+									current++) 
 									{
 									  
 										calc_t force[3] = { 0.0, 0.0, 0.0 };
 
-										for (unsigned other = boxSort->preNbAtomToBox[otherBox]; other < boxSort->preNbAtomToBox[otherBox+1]; other++)
+										for (unsigned other = boxSort->preNbAtomToBox[otherBox];
+										 other < boxSort->preNbAtomToBox[otherBox+1]; 
+										 other++)
 										{
 										  //  printf("coucou %d\n",other);
-											if (current != other && current != NULL && other != NULL) 
+											if (current != other ) //&& current != NULL && other != NULL)//current other pas négatif car unsigned 
 											{
 												sq_dist = squared_distance (set, current, other);
 
