@@ -35,10 +35,23 @@ static void seq_update_vbo (sotl_device_t *dev)
             float ratio =  (float)atom_state[n]/dom->total_boxes;
       //float ratio = (set->pos.z[n] - domain->min_ext[2]) / (domain->max_ext[2] - domain->min_ext[2]);
 
-      vbo_color[n*3 + 0] = (1.0 - ratio) * atom_color[0].R + ratio * 1.0;
-      vbo_color[n*3 + 1] = (1.0 - ratio) * atom_color[0].G + ratio * 0.5;
-      vbo_color[n*3 + 2] = (1.0 - ratio) * atom_color[0].B + ratio * 0.0;
-      printf("%d\n",atom_state[n]);
+      /*vbo_color[n*3 + 0] = (1.0 - ratio) * atom_color[0].R + ratio * 1.0;
+      vbo_color[n*3 + 1] = (1.0 - ratio) * atom_color[0].G + ratio * 1.0;
+      vbo_color[n*3 + 2] = (1.0 - ratio) * atom_color[0].B + ratio * 1.0;*/
+            if(atom_state[n]%7){
+            vbo_color[n*3 + 0] = 1.0 ;
+            vbo_color[n*3 + 1] = 0.0;
+            vbo_color[n*3 + 2] = 0.0;
+    }else{
+                vbo_color[n*3 + 0] = 0.0 ;
+                vbo_color[n*3 + 1] = 0.0;
+                vbo_color[n*3 + 2] = 1.0;
+            }
+
+      /*vbo_color[n*3 + 0] = 1- ratio ;
+      vbo_color[n*3 + 1] = ratio;
+      vbo_color[n*3 + 2] = ratio;*/
+      //printf("%d\n",atom_state[n]);
       //atom_state[n]--;
     }
   }
