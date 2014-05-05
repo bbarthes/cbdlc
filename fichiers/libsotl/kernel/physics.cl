@@ -39,6 +39,13 @@ static inline void inc3coord (__global calc_t * pos, coord_t f, int offset)
     *pos += f.z;
 }
 
+static inline void mult3coord (__global calc_t * pos, coord_t f, int offset)
+{
+    *pos *= f.x; pos += offset;
+    *pos *= f.y; pos += offset;
+    *pos *= f.z;
+}
+
 static inline calc_t squared_dist(coord_t a, coord_t b)
 {
   coord_t f = a - b;
@@ -100,6 +107,24 @@ void border_collision (__global calc_t * pos, __global calc_t * speed,
 		  calc_t radius, unsigned natoms, unsigned offset)
 {
   // TODO
+  
+  unsigned index = get_global_id (0);
+  coord_t mypos = load3coord (pos + index, offset);
+  coord_t pMin = load3coord (min + index, offset);
+  coord_t pMax = load3coord (max + index, offset);
+  
+  coord_t speedMod;
+  speedMod.x = 1;
+  speedMod.y = 1;
+  speedMod.z = 1;
+  
+  if(mypos.x < min.x || mypos.x > max.x){
+	speedMod.x = -1;
+  if(mypos.y < min.y || mypos.y > max.y){
+	speedMod.y = -1;
+  if(mypos.z < min.z || mypos.z > max.z){
+	speedMod.z = -1;
+  mult3coord(speed, speedMod, offset);
 }
 
 
@@ -117,7 +142,9 @@ static void check_collision (__global calc_t * pos, __global calc_t * speed,
     coord_t mypos;
 
     mypos = load3coord (pos + index, offset);
-
+    
+    //* mine
+    
     for (unsigned n = index + 1; n < natoms; n++)
     {
         coord_t other = load3coord (pos + n, offset);
@@ -128,6 +155,20 @@ static void check_collision (__global calc_t * pos, __global calc_t * speed,
 	  freeze_atom (speed + n, offset);
         }
     }
+    //*/
+
+
+/*
+    for (unsigned n = index + 1; n < natoms; n++)
+    {
+        coord_t other = load3coord (pos + n, offset);
+        if (distance (mypos, other) <= 2 * radius)
+        {
+	  // Frozen Bubble mode
+	  freeze_atom (speed + index, offset);
+	  freeze_atom (speed + n, offset);
+        }
+    }*/
 }
 
 // This kernel is executed with one thread per atom
