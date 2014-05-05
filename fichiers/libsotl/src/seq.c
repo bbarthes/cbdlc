@@ -120,6 +120,11 @@ static calc_t squared_distance (sotl_atom_set_t *set, unsigned p1, unsigned p2)
 {
   calc_t *pos1 = set->pos.x + p1,
     *pos2 = set->pos.x + p2;
+    
+    if(p1 == NULL) printf("kaka\n");
+    if(p1 == -1) printf("lala\n");
+    if(p2 == NULL) printf("koko\n");
+    if(p2 == -1) printf("lolo\n");
 
   calc_t dx = pos2[0] - pos1[0],
          dy = pos2[set->offset] - pos1[set->offset],
@@ -284,58 +289,67 @@ static void seq_force_cube (sotl_device_t *dev)
     unsigned currentBox;
     int otherBox;
     calc_t sq_dist;
-
+/*	for(unsigned i = 0 ; i < dom->total_boxes+1; i++)
+	{
+		if(boxSort->preNbAtomToBox[i] < 0)
+		{
+			printf("i = %d num = %d\n", i, boxSort->preNbAtomToBox[i]);
+		}
+	}*/
+			
 	for(int x = 0; x < dom->boxes[0]; x++)
         for(int y = 0; y < dom->boxes[1]; y++)
 			for(int z = 0; z < dom->boxes[2]; z++)
 			{
                 currentBox = get_num_box(dom,x,y,z);
-				
-				for(int xadj = -1; xadj < 2; xadj++)
-					for(int yadj = -1; yadj < 2; yadj++)
-						for(int zadj = -1; zadj < 2; zadj++)
-						{
-
-							int xother = x +xadj;
-							int yother = y +yadj;
-							int zother = z +zadj;
-                            otherBox = get_num_box(dom,xother,yother,zother);
-                            if(otherBox > -1)
+				if(boxSort->nbAtomToBox[currentBox] >0)
+				{
+					for(int xadj = -1; xadj < 2; xadj++)
+						for(int yadj = -1; yadj < 2; yadj++)
+							for(int zadj = -1; zadj < 2; zadj++)
 							{
 
-                              //  printf("current %d , other %d  \n", currentBox,otherBox);
-
-								for (unsigned current = boxSort->preNbAtomToBox[currentBox]; current < boxSort->preNbAtomToBox[currentBox+1]; current++) 
+								int xother = x +xadj;
+								int yother = y +yadj;
+								int zother = z +zadj;
+								otherBox = get_num_box(dom,xother,yother,zother);
+								if(otherBox > -1 && boxSort->nbAtomToBox[otherBox] > 0)
 								{
-                                  //  printf("bite %d\n",current);
-									calc_t force[3] = { 0.0, 0.0, 0.0 };
 
-									for (unsigned other = boxSort->preNbAtomToBox[otherBox]; other < boxSort->preNbAtomToBox[otherBox+1]; other++)
+								  //  printf("current %d , other %d  \n", currentBox,otherBox);
+
+									for (unsigned current = boxSort->preNbAtomToBox[currentBox]; current < boxSort->preNbAtomToBox[currentBox+1]; current++) 
 									{
-                                      //  printf("coucou %d\n",other);
-										if (current != other) 
+									  
+										calc_t force[3] = { 0.0, 0.0, 0.0 };
+
+										for (unsigned other = boxSort->preNbAtomToBox[otherBox]; other < boxSort->preNbAtomToBox[otherBox+1]; other++)
 										{
-                                            sq_dist = squared_distance (set, current, other);
-
-											if (sq_dist < LENNARD_SQUARED_CUTOFF) 
+										  //  printf("coucou %d\n",other);
+											if (current != other && current != NULL && other != NULL) 
 											{
-											  calc_t intensity = lennard_jones (sq_dist);
+												sq_dist = squared_distance (set, current, other);
 
-											  force[0] += intensity * (set->pos.x[current] - set->pos.x[other]);
-											  force[1] += intensity * (set->pos.x[set->offset + current] -
-														   set->pos.x[set->offset + other]);
-											  force[2] += intensity * (set->pos.x[set->offset * 2 + current] -
-														   set->pos.x[set->offset * 2 + other]);
+												if (sq_dist < LENNARD_SQUARED_CUTOFF) 
+												{
+												  calc_t intensity = lennard_jones (sq_dist);
+
+												  force[0] += intensity * (set->pos.x[current] - set->pos.x[other]);
+												  force[1] += intensity * (set->pos.x[set->offset + current] -
+															   set->pos.x[set->offset + other]);
+												  force[2] += intensity * (set->pos.x[set->offset * 2 + current] -
+															   set->pos.x[set->offset * 2 + other]);
+												}
+
 											}
-
 										}
+										set->speed.dx[current] += force[0];
+										set->speed.dx[set->offset + current] += force[1];
+										set->speed.dx[set->offset * 2 + current] += force[2];
 									}
-									set->speed.dx[current] += force[0];
-									set->speed.dx[set->offset + current] += force[1];
-									set->speed.dx[set->offset * 2 + current] += force[2];
 								}
 							}
-						}
+					}
 			}
             //*/ // seq_force_old(dev);
 	
@@ -370,6 +384,11 @@ void seq_one_step_move (sotl_device_t *dev)
   // Update positions
   //
   seq_move (dev);
+  
+  // Bounce on borders (to not get outer atom)
+  //
+  if(borders_enabled)
+    seq_bounce (dev);
 
 #ifdef HAVE_LIBGL
   // Update OpenGL position
