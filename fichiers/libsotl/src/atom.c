@@ -218,7 +218,7 @@ int atom_get_num_box(const sotl_domain_t *dom, const calc_t x, const calc_t y,
     return box_id;
 }
 
-int *atom_set_box_count(const sotl_domain_t *dom, const sotl_atom_set_t *set)
+int * atom_set_box_count(const sotl_domain_t *dom, const sotl_atom_set_t *set)
 {
     int *boxes = NULL;
     size_t size;

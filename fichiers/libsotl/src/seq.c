@@ -18,7 +18,6 @@ static int *atom_state = NULL;
 #define SHOCK_PERIOD  50
 
 // Update OpenGL Vertex Buffer Object
-//
 
 static void seq_update_vbo (sotl_device_t *dev)
 {
@@ -263,14 +262,16 @@ static void sortAtomBox( sotl_domain_t *dom , sotl_atom_set_t *set)
 
 	}
 
-	switchPtr(set);
-	//copiePtr(set);
+    //switchPtr(set);
+    copiePtr(set);
 
 }
 
-int get_num_box(const sotl_domain_t *dom, const int x, const int y,
-                     const int z)
+int get_num_box(const sotl_domain_t *dom, const int x, const int y, const int z)
 {
+    if(x  <0 || y <0 || z <0 )
+        return -1;
+
     int box_x, box_y, box_z;
     int box_id;
     int rrc  = BOX_SIZE_INV;
