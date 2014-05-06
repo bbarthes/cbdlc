@@ -155,11 +155,6 @@ static calc_t squared_distance (sotl_atom_set_t *set, unsigned p1, unsigned p2)
 {
   calc_t *pos1 = set->pos.x + p1,
     *pos2 = set->pos.x + p2;
-    
-    //if(p1 == NULL) printf("kaka\n");
-    //if(p1 == -1) printf("lala\n");//c'est un non signed
-    //if(p2 == NULL) printf("koko\n");
-    //if(p2 == -1) printf("lolo\n");
 
   calc_t dx = pos2[0] - pos1[0],
          dy = pos2[set->offset] - pos1[set->offset],
@@ -207,22 +202,7 @@ static void seq_force_old (sotl_device_t *dev)
     set->speed.dx[set->offset * 2 + current] += force[2];
   }
 }
-//fonction de teste plus utilse
-static void copiePtr( sotl_atom_set_t *set)
-{
 
-	for (unsigned n = 0; n < set->natoms; n++ )
-	{
-		atom_state[n] = boxSort->swapState[n];
-		for(int j = 0 ; j < 3 ; j++)
-		{
-			set->pos.x[n + j * set->offset] = boxSort->swapPosx[n + j * set->offset];
-			set->speed.dx[n + j * set->offset] = boxSort->swapSpeedx[n + j * set->offset];
-		}
-	}
-	
-
-}
 static void switchPtr ( sotl_atom_set_t *set)
 {
 	int * spState =  atom_state;
@@ -276,7 +256,7 @@ static void moveAtomBox(int nAtom, int numbox, sotl_atom_set_t *set)
         boxSort->swapPosx[newPos + offset] = set->pos.x[nAtom + offset];
         boxSort->swapSpeedx[newPos + offset] = set->speed.dx[nAtom +offset];
     }
-    //boxSort->swapState[newPos] = atom_state[nAtom];
+
     boxSort->nbAtomToBox[numbox]++;
 }
 
@@ -301,7 +281,7 @@ static void sortAtomBox( sotl_domain_t *dom , sotl_atom_set_t *set)
 	}
 
     switchPtr(set);
-    //copiePtr(set);
+
 
 }
 
@@ -333,7 +313,6 @@ int get_num_box(const sotl_domain_t *dom, const int x, const int y, const int z)
 void get_pos_box(const sotl_domain_t *dom, int nbBox, unsigned* pos)
 {
     if(nbBox < 0 || pos == NULL){
-        //pos = NULL;
         return;
     }
 
