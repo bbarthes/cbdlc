@@ -24,7 +24,7 @@ if (USE_DOUBLE)
 else ()
     add_definitions(-DUSE_DOUBLE=0)
 endif ()
-add_definitions(-std=c99 -g  -Wno-deprecated -Wall -Wextra -Wno-unused-function) #O3
+add_definitions(-std=c99 -O3 -Wno-deprecated -Wall -Wextra -Wno-unused-function) #O3 -g
 add_definitions(-DSHADERS_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_definitions(-DPROGRAM_NAME="${CMAKE_CURRENT_SOURCE_DIR}/kernel/physics.cl")
 add_definitions(-DOCL_INCLUDE="${CMAKE_CURRENT_SOURCE_DIR}/include")
