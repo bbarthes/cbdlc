@@ -214,7 +214,9 @@ int atom_get_num_box(const sotl_domain_t *dom, const calc_t x, const calc_t y,
               box_y * dom->boxes[0] +
               box_x;
 
-    assert(box_id >= 0 && (unsigned)box_id < dom->total_boxes);
+
+    assert(box_id >= 0);
+    assert((unsigned)box_id < dom->total_boxes);
     return box_id;
 }
 

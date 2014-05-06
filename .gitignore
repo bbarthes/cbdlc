@@ -1,3 +1,4 @@
 fichiers/bin/*
 fichiers/build/*
 *~
+*.DS_Store
