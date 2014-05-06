@@ -56,6 +56,40 @@ typedef struct box {
 	//unsigned * numboxAtom; //numero de la box pour un atom.
 } box_t;
 
+#define CUBE_SENTCIL_SIZE  81
+
+static int cube_stencil[CUBE_SENTCIL_SIZE] = { // 27 * 3
+                            -1,-1,-1,
+                            0,-1,-1,
+                            1,-1,-1,
+                            -1,0,-1,
+                            0,0,-1,
+                            1,0,-1,
+                            -1,1,-1,
+                            0,1,-1,
+                            1,1,-1,
+
+                            -1,-1,0,
+                            0,-1,0,
+                            1,-1,0,
+                            -1,0,0,
+                            0,0,0,
+                            1,0,0,
+                            -1,1,0,
+                            0,1,0,
+                            1,1,0,
+
+                            -1,-1,1,
+                            0,-1,1,
+                            1,-1,1,
+                            -1,0,1,
+                            0,0,1,
+                            1,0,1,
+                            -1,1,1,
+                            0,1,1,
+                            1,1,1
+                             };
+
 static box_t * boxSort = NULL;
 
 // Update positions of atoms by adding (dx, dy, dz)
@@ -249,7 +283,7 @@ static void moveAtomBox(int nAtom, int numbox, sotl_atom_set_t *set)
 static void sortAtomBox( sotl_domain_t *dom , sotl_atom_set_t *set)
 {
 	int n = set->natoms;
-	
+    int box;
 	
     free(boxSort->nbAtomToBox);
     boxSort->nbAtomToBox = NULL;
@@ -260,9 +294,9 @@ static void sortAtomBox( sotl_domain_t *dom , sotl_atom_set_t *set)
 
 	for(int i = 0 ; i < n; i++)
 	{
-        int pos =atom_get_num_box(dom,set->pos.x[i], set->pos.y[i], set->pos.z[i],BOX_SIZE_INV);
-        moveAtomBox(i,pos,set);
-        boxSort->swapState[i] = pos;
+        box =atom_get_num_box(dom,set->pos.x[i], set->pos.y[i], set->pos.z[i],BOX_SIZE_INV);
+        moveAtomBox(i,box,set);
+        boxSort->swapState[i] = box;
 
 	}
 
@@ -321,46 +355,60 @@ void get_pos_box(const sotl_domain_t *dom, int nbBox, unsigned* pos)
 
 
 static void computeForce(sotl_atom_set_t *set, int currentBox, int otherBox){
-    //  printf("current %d , other %d  \n", currentBox,otherBox);
+
     calc_t sq_dist;
-      for (int current = boxSort->preNbAtomToBox[currentBox];
-      current < boxSort->preNbAtomToBox[currentBox+1];
-      current++)
-      {
+    calc_t force[3];
 
-          calc_t force[3] = { 0.0, 0.0, 0.0 };
+    for (int current = boxSort->preNbAtomToBox[currentBox];
+    current < boxSort->preNbAtomToBox[currentBox+1];
+    current++)
+    {
 
-          for (int other = boxSort->preNbAtomToBox[otherBox];
-           other < boxSort->preNbAtomToBox[otherBox+1];
-           other++)
-          {
-            //  printf("coucou %d\n",other);
-              if (current != other ) //&& current != NULL && other != NULL)//current other pas négatif car unsigned
-              {
-                  assert(current >= 0);
-                  assert(other >= 0);
-                  sq_dist = squared_distance (set, current, other);
+        force[0] = 0.0;
+        force[1] = 0.0;
+        force[2] = 0.0;
 
-                  if (sq_dist < LENNARD_SQUARED_CUTOFF)
-                  {
+        for (int other = boxSort->preNbAtomToBox[otherBox];
+        other < boxSort->preNbAtomToBox[otherBox+1];
+        other++)
+        {
+
+            if (current != other ) //&& current != NULL && other != NULL)//current other pas négatif car unsigned
+            {
+                assert(current >= 0);
+                assert(other >= 0);
+                sq_dist = squared_distance (set, current, other);
+
+                if (sq_dist < LENNARD_SQUARED_CUTOFF)
+                {
                     calc_t intensity = lennard_jones (sq_dist);
 
                     force[0] += intensity * (set->pos.x[current] - set->pos.x[other]);
-                    force[1] += intensity * (set->pos.x[set->offset + current] -
-                                 set->pos.x[set->offset + other]);
-                    force[2] += intensity * (set->pos.x[set->offset * 2 + current] -
-                                 set->pos.x[set->offset * 2 + other]);
-                  }
-
-              }
-          }
-          set->speed.dx[current] += force[0];
-          set->speed.dx[set->offset + current] += force[1];
-          set->speed.dx[set->offset * 2 + current] += force[2];
-      }
+                    force[1] += intensity * (set->pos.x[set->offset + current] - set->pos.x[set->offset + other]);
+                    force[2] += intensity * (set->pos.x[set->offset * 2 + current] - set->pos.x[set->offset * 2 + other]);
+                }
+            }
+        }
+        set->speed.dx[current] += force[0];
+        set->speed.dx[set->offset + current] += force[1];
+        set->speed.dx[set->offset * 2 + current] += force[2];
+  }
 
 }
 
+/*
+void checkGetNum(sotl_domain_t *dom, int currentBox){
+    // CHECK
+    // printf("CHECK BEGIN\n");
+    unsigned pos[3] ={0,0,0};
+    get_pos_box(dom, currentBox, pos);
+    if(x!=pos[0])   printf("fuck X %d,%d\n",x,pos[1]);
+    if(y!=pos[1])   printf("fuck Y\n");
+    if(z!=pos[2])   printf("fuck Z\n");
+    //printf("CHECK END\n");
+    // END CHECK
+
+}*/
 
 static void seq_force_cube (sotl_device_t *dev)
 {
@@ -369,96 +417,33 @@ static void seq_force_cube (sotl_device_t *dev)
 	
     sortAtomBox(dom,set);
 	
-    //*
-    int currentBox;
+
     int otherBox;
-    //calc_t sq_dist;
-/*	for(unsigned i = 0 ; i < dom->total_boxes+1; i++)
-	{
-		if(boxSort->preNbAtomToBox[i] < 0)
-		{
-			printf("i = %d num = %d\n", i, boxSort->preNbAtomToBox[i]);
-		}
-	}*/
 
-//*    //TODO optimisation invertion des boucles pour le cache
-    for(unsigned z = 0; z < dom->boxes[2]; z++)
-        for(unsigned y = 0; y < dom->boxes[1]; y++)
-            for(unsigned x = 0; x < dom->boxes[0]; x++)
+    for(unsigned currentBox = 0; currentBox < dom->total_boxes; currentBox++)
+    {
+        unsigned pos[3] ={0,0,0};
+        get_pos_box(dom, currentBox, pos);
 
 
-			{
-                currentBox = get_num_box(dom,x,y,z);
+        if(boxSort->nbAtomToBox[currentBox] >0)
+        {
+            for(int pos_s = 0; pos_s < CUBE_SENTCIL_SIZE; pos_s+=3)
+            {
+                int xother = pos[0] +cube_stencil[pos_s];
+                int yother = pos[1] +cube_stencil[pos_s+1];;
+                int zother = pos[2] +cube_stencil[pos_s+2];
 
-                // CHECK
-               // printf("CHECK BEGIN\n");
-                unsigned pos[3] ={0,0,0};
-                get_pos_box(dom, currentBox, pos);
-                if(x!=pos[0])   printf("fuck X %d,%d\n",x,pos[1]);
-                if(y!=pos[1])   printf("fuck Y\n");
-                if(z!=pos[2])   printf("fuck Z\n");
-                //printf("CHECK END\n");
-                // END CHECK
-                assert(currentBox >= 0);
+                otherBox = get_num_box(dom,xother,yother,zother);
 
-				if(boxSort->nbAtomToBox[currentBox] >0)
-				{
-                    //TODO optimisation par utilisation d'un tableau
-					for(int xadj = -1; xadj < 2; xadj++)
-						for(int yadj = -1; yadj < 2; yadj++)
-							for(int zadj = -1; zadj < 2; zadj++)
-							{
+                if(otherBox > -1 && boxSort->nbAtomToBox[otherBox] > 0)
+                {
+                    computeForce(set, currentBox, otherBox);
+                }
+            }
+        }
+    }
 
-								int xother = x +xadj;
-								int yother = y +yadj;
-								int zother = z +zadj;
-								otherBox = get_num_box(dom,xother,yother,zother);
-								if(otherBox > -1 && boxSort->nbAtomToBox[otherBox] > 0)
-								{
-                                    computeForce(set, currentBox, otherBox);
-                                /*
-								  //  printf("current %d , other %d  \n", currentBox,otherBox);
-
-                                    for (int current = boxSort->preNbAtomToBox[currentBox];
-									current < boxSort->preNbAtomToBox[currentBox+1]; 
-									current++) 
-									{
-									  
-										calc_t force[3] = { 0.0, 0.0, 0.0 };
-
-                                        for (int other = boxSort->preNbAtomToBox[otherBox];
-										 other < boxSort->preNbAtomToBox[otherBox+1]; 
-										 other++)
-										{
-										  //  printf("coucou %d\n",other);
-											if (current != other ) //&& current != NULL && other != NULL)//current other pas négatif car unsigned 
-											{
-                                                assert(current >= 0);
-                                                assert(other >= 0);
-												sq_dist = squared_distance (set, current, other);
-
-												if (sq_dist < LENNARD_SQUARED_CUTOFF) 
-												{
-												  calc_t intensity = lennard_jones (sq_dist);
-
-												  force[0] += intensity * (set->pos.x[current] - set->pos.x[other]);
-												  force[1] += intensity * (set->pos.x[set->offset + current] -
-															   set->pos.x[set->offset + other]);
-												  force[2] += intensity * (set->pos.x[set->offset * 2 + current] -
-															   set->pos.x[set->offset * 2 + other]);
-												}
-
-											}
-										}
-										set->speed.dx[current] += force[0];
-										set->speed.dx[set->offset + current] += force[1];
-										set->speed.dx[set->offset * 2 + current] += force[2];
-                                    }*/
-								}
-							}
-					}
-			}
-            //*/   seq_force_old(dev);
 	
 }
 
@@ -532,8 +517,8 @@ void seq_alloc_buffers (sotl_device_t *dev)
 	boxSort->swapState = malloc(set->natoms * sizeof(int));
 	//boxSort->numboxAtom = malloc(set->natoms * sizeof(unsigned));
 	
-  atom_state = calloc(dev->atom_set.natoms, sizeof(int));
-  printf("natoms: %d\n", dev->atom_set.natoms);
+    atom_state = calloc(dev->atom_set.natoms, sizeof(int));
+    printf("natoms: %d\n", dev->atom_set.natoms);
 }
 
 void seq_finalize (sotl_device_t *dev)
