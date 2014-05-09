@@ -263,7 +263,7 @@ static void moveAtomBox(int nAtom, int numbox, sotl_atom_set_t *set)
 static void sortAtomBox( sotl_domain_t *dom , sotl_atom_set_t *set)
 {
 	int n = set->natoms;
-    int box;
+    int box_id;
 	
     free(boxSort->nbAtomToBox);
     boxSort->nbAtomToBox = NULL;
@@ -274,9 +274,9 @@ static void sortAtomBox( sotl_domain_t *dom , sotl_atom_set_t *set)
 
 	for(int i = 0 ; i < n; i++)
 	{
-        box =atom_get_num_box(dom,set->pos.x[i], set->pos.y[i], set->pos.z[i],BOX_SIZE_INV);
-        moveAtomBox(i,box,set);
-        boxSort->swapState[i] = box;
+        box_id = atom_get_num_box(dom,set->pos.x[i], set->pos.y[i], set->pos.z[i],BOX_SIZE_INV);
+        moveAtomBox(i,box_id,set);
+        boxSort->swapState[i] = box_id;
 
 	}
 

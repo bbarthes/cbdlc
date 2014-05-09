@@ -106,25 +106,15 @@ void border_collision (__global calc_t * pos, __global calc_t * speed,
 		  __constant calc_t * min, __constant calc_t * max,
 		  calc_t radius, unsigned natoms, unsigned offset)
 {
-  // TODO
+  // TODO => DONE
   
   unsigned index = get_global_id (0);
-  coord_t mypos = load3coord (pos + index, offset);
-  coord_t pMin = load3coord (min + index, offset);
-  coord_t pMax = load3coord (max + index, offset);
-  
-  coord_t speedMod;
-  speedMod.x = 1;
-  speedMod.y = 1;
-  speedMod.z = 1;
-  
-  if(mypos.x < min.x || mypos.x > max.x){
-	speedMod.x = -1;
-  if(mypos.y < min.y || mypos.y > max.y){
-	speedMod.y = -1;
-  if(mypos.z < min.z || mypos.z > max.z){
-	speedMod.z = -1;
-  mult3coord(speed, speedMod, offset);
+	unsigned axe = index % 3;
+	unsigned no_atom = index / 3;
+
+	if(pos[no_atom + axe * offset] > max[axe] || pos[no_atom + axe * offset] < min[axe]){
+			speed[no_atom + axe * offset] *= -1;
+	}
 }
 
 
@@ -143,32 +133,17 @@ static void check_collision (__global calc_t * pos, __global calc_t * speed,
 
     mypos = load3coord (pos + index, offset);
     
-    //* mine
-    
     for (unsigned n = index + 1; n < natoms; n++)
     {
         coord_t other = load3coord (pos + n, offset);
         if (distance (mypos, other) <= 2 * radius)
         {
-	  // Frozen Bubble mode
-	  freeze_atom (speed + index, offset);
-	  freeze_atom (speed + n, offset);
+					// Frozen Bubble mode
+					freeze_atom (speed + index, offset);
+					freeze_atom (speed + n, offset);
         }
     }
-    //*/
 
-
-/*
-    for (unsigned n = index + 1; n < natoms; n++)
-    {
-        coord_t other = load3coord (pos + n, offset);
-        if (distance (mypos, other) <= 2 * radius)
-        {
-	  // Frozen Bubble mode
-	  freeze_atom (speed + index, offset);
-	  freeze_atom (speed + n, offset);
-        }
-    }*/
 }
 
 // This kernel is executed with one thread per atom
@@ -200,6 +175,36 @@ void lennard_jones (__global calc_t * pos,
 		       unsigned natoms, unsigned offset)
 {
   // TODO
+  
+  unsigned current = get_global_id (0);
+
+  calc_t force[3] = { 0.0, 0.0, 0.0 };
+  
+  coord_t atom_cur = load3coord(pos + current, offset);
+	
+	for (unsigned other = 0 ; other < natoms; other++)
+	{
+		coord_t atom_other = load3coord(pos + other, offset);
+      if (current != other) {
+				calc_t sq_dist  = squared_dist(atom_cur, atom_other);
+
+				if (sq_dist < LENNARD_SQUARED_CUTOFF) {
+					calc_t intensity = lj_squared_v (sq_dist);
+
+					force[0] += intensity * (pos[current] - pos[other]);
+					force[1] += intensity * (pos[current + offset]-
+											 pos[other + offset]);
+					force[2] += intensity * (pos[current + offset * 2] -
+											 pos[other + offset * 2]);
+				}
+
+      }
+	}
+		
+	speed[current] += force[0];
+	speed[current + offset] += force[1];
+	speed[current + offset * 2] += force[2];
+		
 }
 
 

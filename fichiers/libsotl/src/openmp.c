@@ -54,8 +54,8 @@ float couleur[24][3] = {
 static void omp_update_vbo (sotl_device_t *dev)
 {
   sotl_atom_set_t *set = &dev->atom_set;
-  //sotl_domain_t *domain = &dev->domain;
-#pragma omp for
+  sotl_domain_t *dom = &dev->domain;
+  #pragma omp for
   for (unsigned n = 0; n < set->natoms; n++) {
     vbo_vertex[n*3 + 0] = set->pos.x[n];
     vbo_vertex[n*3 + 1] = set->pos.y[n];
@@ -66,11 +66,16 @@ static void omp_update_vbo (sotl_device_t *dev)
     {
       //float ratio = (float)atom_state[n];
       //(set->pos.z[n] - domain->min_ext[2]) / (domain->max_ext[2] - domain->min_ext[2]);
-
+/*
       vbo_color[n*3 + 0] = couleur[atom_state[n]][0];//(1.0 - ratio) * atom_color[0].R + ratio * 1.0;
       vbo_color[n*3 + 1] = couleur[atom_state[n]][1];//(1.0 - ratio) * atom_color[0].G + ratio * 0.0;
       vbo_color[n*3 + 2] = couleur[atom_state[n]][2];//(1.0 - ratio) * atom_color[0].B + ratio * 0.0;
-      //atom_state[n]--;
+      //atom_state[n]--;*/
+      
+      float ratio =  (float)atom_state[n]/dom->total_boxes;
+      vbo_color[n*3 + 0] = (1.0 - ratio) * atom_color[0].R + ratio * 1.0;
+      vbo_color[n*3 + 1] = (1.0 - ratio) * atom_color[0].G + ratio * 0.5;
+      vbo_color[n*3 + 2] = (1.0 - ratio) * atom_color[0].B + ratio * 0.0;
     }
   }
 }
@@ -127,6 +132,7 @@ static box_t * boxSort = NULL;
 static void omp_move (sotl_device_t *dev)
 {
   sotl_atom_set_t *set = &dev->atom_set;
+  
   #pragma omp for
   for (unsigned n = 0; n < set->natoms; n++) {
     set->pos.x[n] += set->speed.dx[n];
@@ -142,9 +148,9 @@ static void omp_gravity (sotl_device_t *dev)
   sotl_atom_set_t *set = &dev->atom_set;
   const calc_t g = 0.005;
 
-#pragma omp for
+	#pragma omp for
   for (unsigned n = 0; n < set->natoms; n++) {
-  
+		//printf("omp_gravity thread %d\n",omp_get_thread_num());
   	set->speed.dy[n] -= g;
   }
 }
@@ -154,12 +160,10 @@ static void omp_bounce (sotl_device_t *dev)
     sotl_atom_set_t *set = &dev->atom_set;
     sotl_domain_t *domain = &dev->domain;
 
-    //TODO
 
     #pragma omp for
     for (unsigned n = 0; n < set->natoms; n++)
     {
-
         for(int i = 0; i <3 ; i++)
         {
             if(set->pos.x[n+set->offset*i]<= domain->min_ext[i])
@@ -444,6 +448,7 @@ static void omp_switchPtr ( sotl_atom_set_t *set)
 
 static void omp_resTab(int * tab , unsigned sizeofTab)
 {
+		//#pragma omp for
     for(unsigned i = 0 ; i < sizeofTab; i++)
     {
         tab[i]= 0;
@@ -453,6 +458,7 @@ static void omp_resTab(int * tab , unsigned sizeofTab)
 static void omp_prefixTab(int * source , int * dest, unsigned size)
 {
     dest[0] = 0;
+    //#pragma omp for
     for(unsigned i =0 ; i < size; i++)
     {
         dest[i+1] = dest[i] + source[i];
@@ -466,36 +472,49 @@ static void omp_moveAtomBox(int nAtom, int numbox, sotl_atom_set_t *set)
 
     assert(numbox >= 0);
 
+		//#pragma omp for
     for(unsigned j = 0 ; j < 3 ; j++)
     {
         int offset = set->offset * j;
         boxSort->swapPosx[newPos + offset] = set->pos.x[nAtom + offset];
         boxSort->swapSpeedx[newPos + offset] = set->speed.dx[nAtom +offset];
     }
+    
     boxSort->nbAtomToBox[numbox]++;
 }
 
 static void omp_sortAtomBox( sotl_domain_t *dom , sotl_atom_set_t *set)
 {
 	int n = set->natoms;
-    int box;
+	int box_id;
 	
-    free(boxSort->nbAtomToBox);
-    boxSort->nbAtomToBox = NULL;
-    boxSort->nbAtomToBox = atom_set_box_count(dom,set);
+	#pragma omp single
+	{
+		//printf("omp_sortAtomBox sing thread %d\n",omp_get_thread_num());
+		free(boxSort->nbAtomToBox);
+		boxSort->nbAtomToBox = NULL;
+		boxSort->nbAtomToBox = atom_set_box_count(dom,set);
 
-    omp_prefixTab(boxSort->nbAtomToBox, boxSort->preNbAtomToBox, dom->total_boxes);
-    omp_resTab(boxSort->nbAtomToBox, dom->total_boxes);
-
+	omp_prefixTab(boxSort->nbAtomToBox, boxSort->preNbAtomToBox, dom->total_boxes);
+	omp_resTab(boxSort->nbAtomToBox, dom->total_boxes);
+	}
+	
+	#pragma omp barrier
+	
+	#pragma omp for private(box_id)
 	for(int i = 0 ; i < n; i++)
 	{
-        box =atom_get_num_box(dom,set->pos.x[i], set->pos.y[i], set->pos.z[i],BOX_SIZE_INV);
-        omp_moveAtomBox(i,box,set);
-        boxSort->swapState[i] = box;
+		//printf("omp_sortAtomBox thread %d\n",omp_get_thread_num());
+		box_id =atom_get_num_box(dom,set->pos.x[i], set->pos.y[i], set->pos.z[i],BOX_SIZE_INV);
+		omp_moveAtomBox(i,box_id,set);
+		boxSort->swapState[i] = box_id;
 
 	}
-
-    omp_switchPtr(set);
+	
+	#pragma omp single
+	omp_switchPtr(set);
+	
+	#pragma omp barrier
 }
 
 int omp_get_num_box(const sotl_domain_t *dom, const int x, const int y, const int z)
@@ -606,15 +625,17 @@ static void omp_seq_force_cube (sotl_device_t *dev)
 {
 	sotl_atom_set_t *set = &dev->atom_set;
 	sotl_domain_t *dom = &dev->domain;
+	//printf("omp_seq_force_cube thread %d\n",omp_get_thread_num());
 	
-    omp_sortAtomBox(dom,set);
+  omp_sortAtomBox(dom,set);
 	
 
     int otherBox;
 
+		#pragma omp for private(otherBox)
     for(unsigned currentBox = 0; currentBox < dom->total_boxes; currentBox++)
     {
-        unsigned pos[3] ={0,0,0};
+				unsigned pos[3] = {0,0,0};
         omp_get_pos_box(dom, currentBox, pos);
 
 
@@ -643,7 +664,7 @@ static void omp_seq_force_cube (sotl_device_t *dev)
 
 static void omp_force (sotl_device_t *dev)
 {
-  sotl_atom_set_t *set = &dev->atom_set;
+  //sotl_atom_set_t *set = &dev->atom_set;
   
   //#pragma omp single
   //boxForce(dev);
@@ -685,10 +706,13 @@ static void omp_force (sotl_device_t *dev)
 	}//*/
   
 //old stuff
-//*
+/*
   omp_forceOrg(dev);
 
   //*/
+  
+  
+  omp_seq_force_cube (dev);
 }
 
 
@@ -696,9 +720,11 @@ static void omp_force (sotl_device_t *dev)
 //
 void omp_one_step_move (sotl_device_t *dev)
 {
-
-#pragma omp parallel default(shared)
-{
+	//omp_set_num_threads(16);
+	
+	#pragma omp parallel //default(shared)
+	{
+		//printf("thread %d\n",omp_get_thread_num());
   // Apply gravity force
   //
   if (gravity_enabled)
